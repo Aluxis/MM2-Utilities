@@ -729,3 +729,174 @@ end
 
 --Better ESP
 
+local Services = setmetatable({}, {__index = function(Self, Index)
+local NewService = game.GetService(game, Index)
+if NewService then
+Self[Index] = NewService
+end
+return NewService
+end})
+
+local LocalPlayer = Services.Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+local WeaponNames = {
+   Knife = {
+Index = "Murderer";
+Color = Color3.fromRGB(255, 0, 0)
+};
+Gun = {
+Index = "Sheriff";
+Color = Color3.fromRGB(0, 0, 255)
+};
+}
+
+local AttackAnimations = {
+   "rbxassetid://2467567750";
+   "rbxassetid://1957618848";
+   "rbxassetid://2470501967";
+   "rbxassetid://2467577524";
+}
+
+local Roles = {
+   Murderer = nil;
+   Sheriff = nil;
+   Closest = nil;
+}
+
+local ESPInstances = {}
+local ESPToggle = false
+
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+LocalPlayer.CharacterAdded:Connect(function(Character)
+Character = Character
+Humanoid = Character:WaitForChild("Humanoid")
+end)
+
+local Functions = {}
+
+function Functions.ESP(Part, Color)
+   if Part:FindFirstChildOfClass('BoxHandleAdornment') then
+       return Part:FindFirstChildOfClass('BoxHandleAdornment')
+   end
+
+   local Box = Instance.new("BoxHandleAdornment")
+   Box.Size = Part.Size + Vector3.new(0.1, 0.1, 0.1)
+   Box.Name = "Mesh"
+   Box.Visible = ESPToggle
+   Box.Adornee = Part
+   Box.Color3 = Color
+   Box.AlwaysOnTop = true
+   Box.ZIndex = 5
+   Box.Transparency = 0.5
+   Box.Parent = Part
+
+   table.insert(ESPInstances, Box)
+
+   return Box
+end
+
+local EventFunctions = {}
+
+function EventFunctions.Initialize(Player)
+   local function CharacterAdded(Character)
+       Player:WaitForChild("Backpack").ChildAdded:Connect(function(Child)
+           local Role = WeaponNames[Child.Name]
+           if Role then
+Roles[Role.Index] = Player
+
+               local Cham = Functions.ESP(Player.Character.HumanoidRootPart, Role.Color)
+
+               local Animator = Player.Character:FindFirstChildWhichIsA("Humanoid"):WaitForChild("Animator")
+               Animator.AnimationPlayed:Connect(function(AnimationTrack)
+                   if (AnimationTrack and AnimationTrack.Animation) == nil then
+                       return
+                   end
+
+                   if table.find(AttackAnimations, AnimationTrack.Animation.AnimationId) then
+                       Cham.Color3 = Color3.fromRGB(255, 0, 255)
+
+                       while true do
+                           Services.RunService.Heartbeat:Wait(0.01)
+                           local PlayingAnimations = Animator:GetPlayingAnimationTracks()
+                           local StillAttacking = false
+                           for i,v in ipairs(PlayingAnimations) do
+                               if table.find(AttackAnimations, v.Animation.AnimationId) then
+                                   StillAttacking = true
+                               end
+                           end
+                           if StillAttacking == false then
+                               break
+                           end
+                       end
+
+                       Cham.Color3 = Role.Color
+                   end
+               end)
+           end
+       end)
+   end
+
+   CharacterAdded(Player.Character or Player.CharacterAdded:Wait())
+   Player.CharacterAdded:Connect(CharacterAdded)
+end
+
+function EventFunctions.GunAdded(Child)
+   if Child.Name == "GunDrop" then
+       Functions.ESP(Child, Color3.fromRGB(255, 255, 255))
+   end
+end
+
+function EventFunctions.ContextActionService_C(actionName, InputState, inputObject)
+if InputState == Enum.UserInputState.End then
+return
+   end
+   
+   Functions.NotifyRoles()
+end
+
+function EventFunctions.ContextActionService_V(actionName, InputState, inputObject)
+if InputState == Enum.UserInputState.End then
+return
+   end
+
+   if Humanoid.WalkSpeed == 16.5 or Humanoid.WalkSpeed == 16 then
+Humanoid.WalkSpeed = 20
+else
+Humanoid.WalkSpeed = 16.5
+   end
+
+   Services.StarterGui:SetCore("SendNotification", {
+Title = 'Speed Change';
+Text = tostring(Humanoid.WalkSpeed);
+Duration = 3;
+})
+end
+
+function EventFunctions.ContextActionService_B(actionName, InputState, inputObject)
+if InputState == Enum.UserInputState.End then
+return
+   end
+
+   ESPToggle = not ESPToggle
+   for i,v in ipairs(ESPInstances) do
+       v.Visible = ESPToggle
+       if v.Parent == nil then
+           table.remove(ESPInstances, i)
+       end
+   end
+end
+
+function EventFunctions.ContextActionService_G(actionName, InputState, inputObject)
+   if InputState == Enum.UserInputState.End then
+return
+end
+end
+
+Services.Players.PlayerAdded:Connect(EventFunctions.Initialize)
+
+workspace.ChildAdded:Connect(EventFunctions.GunAdded)
+
+Services.ContextActionService:BindAction('SprintBind', EventFunctions.ContextActionService_V, false, Enum.KeyCode.V)
+Services.ContextActionService:BindAction('ESPBind', EventFunctions.ContextActionService_B, false, Enum.KeyCode.B)
